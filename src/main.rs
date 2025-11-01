@@ -41,19 +41,19 @@ async fn authorize(req: Request<Body>, auth_token: String) -> Result<Request<Bod
 // Forward the request to the upstream server.
 async fn forward(req: Request<Body>, upstream_base: Uri) -> Result<Response<Body>, hyper::Error> {
     // Build new URI preserving path and query.
-    let mut parts = upstream_base.into_parts();
     let orig_uri = req.uri();
-    // Replace the path and query with those from the original request.
+    // Extract the path and query from the original request.
     let path_and_query = orig_uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("/");
-    let new_path = format!("{}", path_and_query);
-    parts.path_and_query = Some(new_path.parse().unwrap());
+    // Clone upstream_base to avoid moving it.
+    let mut parts = upstream_base.clone().into_parts();
+    parts.path_and_query = Some(path_and_query.parse().unwrap());
     let uri = Uri::from_parts(parts).expect("valid upstream URI");
 
     // Clone the request method and headers.
     let (mut parts_req, body) = req.into_parts();
     parts_req.uri = uri;
     // Optionally adjust Host header to match upstream host.
-    if let Some(authority) = parts.authority {
+    if let Some(authority) = upstream_base.authority() {
         parts_req.headers.insert("host", authority.as_str().parse().unwrap());
     }
     let new_req = Request::from_parts(parts_req, body);
